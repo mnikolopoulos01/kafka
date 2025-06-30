@@ -1,0 +1,32 @@
+{
+  "name": "kafkaservices",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "tsx src/test/testConnection.ts",
+    "monitor": "npx tsx src/examples/monitorFlowOutputs.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MnCSD/kafka.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MnCSD/kafka/issues"
+  },
+  "homepage": "https://github.com/MnCSD/kafka#readme",
+  "description": "",
+  "dependencies": {
+    "events": "^3.3.0",
+    "kafkajs": "^2.2.4",
+    "loader": "^2.1.1"
+  },
+  "devDependencies": {
+    "@types/events": "^3.0.3",
+    "@types/node": "^24.0.7"
+  }
+}
