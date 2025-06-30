@@ -9,6 +9,8 @@ import { KafkaConsumerService } from "./services/KafkaConsumerService.js";
 import { KafkaProducerService } from "./services/KafkaProducerService.js";
 import { KafkaOutputMonitor } from "./services/KafkaOutputMonitor.js";
 import { defaultKafkaConfig, createKafkaConfig } from "./config/kafkaConfig.js";
+import { fileURLToPath } from 'url';
+import { resolve } from 'path';
 
 console.log("📦 Imports completed successfully");
 
@@ -178,7 +180,15 @@ console.log("🔍 Checking if this file is executed directly...");
 console.log("📄 import.meta.url:", import.meta.url);
 console.log("📄 process.argv[1]:", process.argv[1]);
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Better cross-platform detection for direct execution
+const currentFile = fileURLToPath(import.meta.url);
+const executedFile = resolve(process.argv[1]);
+
+console.log("🔍 Resolved paths:");
+console.log("   Current file:", currentFile);
+console.log("   Executed file:", executedFile);
+
+if (currentFile === executedFile) {
   console.log("✅ File is executed directly - calling main()");
   main().catch((error) => {
     console.error("❌ Unhandled error in main:", error);
