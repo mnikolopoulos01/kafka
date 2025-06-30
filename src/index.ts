@@ -1,17 +1,29 @@
+// Add immediate console output to verify script execution
+console.log("🚀 SCRIPT STARTING - If you see this, the script is running");
+console.log("📅 Start time:", new Date().toISOString());
+console.log("🔧 Node version:", process.version);
+console.log("📁 Working directory:", process.cwd());
+
 import { KafkaAdminService } from "./services/KafkaAdminService.js";
 import { KafkaConsumerService } from "./services/KafkaConsumerService.js";
 import { KafkaProducerService } from "./services/KafkaProducerService.js";
 import { KafkaOutputMonitor } from "./services/KafkaOutputMonitor.js";
 import { defaultKafkaConfig, createKafkaConfig } from "./config/kafkaConfig.js";
 
+console.log("📦 Imports completed successfully");
+
 // Example usage focused on monitoring flow outputs
 async function main() {
+  console.log("🎯 MAIN FUNCTION STARTED");
+  
   try {
     console.log("🚀 Kafka Flow Output Service Starting...");
     console.log("📡 Connecting to Kafka broker:", defaultKafkaConfig.connectionConfig.brokers);
 
     // First, let's check what topics exist
+    console.log("🔧 Creating admin service...");
     const adminService = new KafkaAdminService(defaultKafkaConfig);
+    console.log("✅ Admin service created");
     
     console.log("🔍 Checking available topics...");
     const allTopics = await adminService.getAllTopics();
@@ -30,10 +42,14 @@ async function main() {
       console.log("\n🔄 Will continue monitoring and check for new topics periodically...");
     }
     
+    console.log("🔌 Disconnecting admin service...");
     await adminService.disconnect();
+    console.log("✅ Admin service disconnected");
 
     // Create output monitor
+    console.log("🔧 Creating output monitor...");
     const monitor = new KafkaOutputMonitor(defaultKafkaConfig, 1000);
+    console.log("✅ Output monitor created");
 
     // Set up monitoring events
     monitor.on("flow-output", (output) => {
@@ -62,8 +78,10 @@ async function main() {
     // Start monitoring all flow topics
     console.log("🔍 Starting flow output monitoring...");
     await monitor.startMonitoring();
+    console.log("✅ Monitor started successfully");
 
     // Show status periodically and check for new topics
+    console.log("⏰ Setting up status interval...");
     const statusInterval = setInterval(async () => {
       const status = monitor.getMonitoringStatus();
       console.log(`📊 Status: ${status.totalOutputs} outputs from ${status.topicCount} topics`);
@@ -110,20 +128,25 @@ async function main() {
       process.exit(0);
     });
 
+    console.log("🔄 Main function setup complete - process should stay alive");
+
   } catch (error) {
     console.error("❌ Error in main:", error);
+    console.error("❌ Error stack:", error.stack);
     
     if (error.message?.includes('ECONNREFUSED')) {
       console.log("\n🔧 Connection troubleshooting:");
       console.log("   1. Check if Kafka broker is running");
       console.log("   2. Verify broker address:", defaultKafkaConfig.connectionConfig.brokers);
       console.log("   3. Ensure port 9092 is accessible");
-      console.log("   4. Try running: npm run debug");
+      console.log("   4. Try running: npm run test:basic");
     }
     
     process.exit(1);
   }
 }
+
+console.log("🔧 Setting up main function execution...");
 
 // Export services for use in other modules
 export {
@@ -135,6 +158,18 @@ export {
 export { createKafkaConfig, defaultKafkaConfig } from "./config/kafkaConfig.js";
 
 // Run main function if this file is executed directly
+console.log("🔍 Checking if this file is executed directly...");
+console.log("📄 import.meta.url:", import.meta.url);
+console.log("📄 process.argv[1]:", process.argv[1]);
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
+  console.log("✅ File is executed directly - calling main()");
+  main().catch((error) => {
+    console.error("❌ Unhandled error in main:", error);
+    process.exit(1);
+  });
+} else {
+  console.log("ℹ️  File is imported as module - not calling main()");
 }
+
+console.log("🏁 Script setup complete");
