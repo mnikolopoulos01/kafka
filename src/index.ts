@@ -16,13 +16,18 @@ console.log("📦 Imports completed successfully");
 async function main() {
   console.log("🎯 MAIN FUNCTION STARTED");
   
+  // Keep references to services for cleanup
+  let adminService: KafkaAdminService | null = null;
+  let monitor: KafkaOutputMonitor | null = null;
+  let statusInterval: NodeJS.Timeout | null = null;
+  
   try {
     console.log("🚀 Kafka Flow Output Service Starting...");
     console.log("📡 Connecting to Kafka broker:", defaultKafkaConfig.connectionConfig.brokers);
 
-    // First, let's check what topics exist
+    // Create admin service but keep it alive
     console.log("🔧 Creating admin service...");
-    const adminService = new KafkaAdminService(defaultKafkaConfig);
+    adminService = new KafkaAdminService(defaultKafkaConfig);
     console.log("✅ Admin service created");
     
     console.log("🔍 Checking available topics...");
@@ -42,13 +47,12 @@ async function main() {
       console.log("\n🔄 Will continue monitoring and check for new topics periodically...");
     }
     
-    console.log("🔌 Disconnecting admin service...");
-    await adminService.disconnect();
-    console.log("✅ Admin service disconnected");
+    // DON'T disconnect admin service here - keep it for periodic checks
+    console.log("✅ Admin service will stay connected for periodic topic checks");
 
     // Create output monitor
     console.log("🔧 Creating output monitor...");
-    const monitor = new KafkaOutputMonitor(defaultKafkaConfig, 1000);
+    monitor = new KafkaOutputMonitor(defaultKafkaConfig, 1000);
     console.log("✅ Output monitor created");
 
     // Set up monitoring events
@@ -82,22 +86,20 @@ async function main() {
 
     // Show status periodically and check for new topics
     console.log("⏰ Setting up status interval...");
-    const statusInterval = setInterval(async () => {
-      const status = monitor.getMonitoringStatus();
+    statusInterval = setInterval(async () => {
+      const status = monitor!.getMonitoringStatus();
       console.log(`📊 Status: ${status.totalOutputs} outputs from ${status.topicCount} topics`);
       
-      // Periodically check for new flow topics
+      // Periodically check for new flow topics using the existing admin service
       if (status.topicCount === 0) {
         console.log("🔄 Checking for new flow topics...");
         try {
-          const adminCheck = new KafkaAdminService(defaultKafkaConfig);
-          const newFlowTopics = await adminCheck.getFlowTopics();
+          const newFlowTopics = await adminService!.getFlowTopics();
           if (newFlowTopics.length > 0) {
             console.log(`🆕 Found ${newFlowTopics.length} new flow topics! Restarting monitor...`);
-            await monitor.stopMonitoring();
-            await monitor.startMonitoring();
+            await monitor!.stopMonitoring();
+            await monitor!.startMonitoring();
           }
-          await adminCheck.disconnect();
         } catch (error) {
           console.error("Error checking for new topics:", error);
         }
@@ -112,21 +114,30 @@ async function main() {
     console.log("\n💡 Press Ctrl+C to stop");
 
     // Graceful shutdown
-    process.on("SIGINT", async () => {
+    const cleanup = async () => {
       console.log("\n🛑 Shutting down...");
-      clearInterval(statusInterval);
-      await monitor.disconnect();
+      
+      if (statusInterval) {
+        clearInterval(statusInterval);
+        statusInterval = null;
+      }
+      
+      if (monitor) {
+        await monitor.disconnect();
+        monitor = null;
+      }
+      
+      if (adminService) {
+        await adminService.disconnect();
+        adminService = null;
+      }
+      
       console.log("👋 Shutdown complete");
       process.exit(0);
-    });
+    };
 
-    // Keep the process alive
-    process.on("SIGTERM", async () => {
-      console.log("\n🛑 Received SIGTERM, shutting down...");
-      clearInterval(statusInterval);
-      await monitor.disconnect();
-      process.exit(0);
-    });
+    process.on("SIGINT", cleanup);
+    process.on("SIGTERM", cleanup);
 
     console.log("🔄 Main function setup complete - process should stay alive");
 
@@ -141,6 +152,11 @@ async function main() {
       console.log("   3. Ensure port 9092 is accessible");
       console.log("   4. Try running: npm run test:basic");
     }
+    
+    // Cleanup on error
+    if (statusInterval) clearInterval(statusInterval);
+    if (monitor) await monitor.disconnect();
+    if (adminService) await adminService.disconnect();
     
     process.exit(1);
   }
