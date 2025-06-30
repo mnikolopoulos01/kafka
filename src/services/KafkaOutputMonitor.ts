@@ -46,12 +46,12 @@ export class KafkaOutputMonitor extends EventEmitter {
     });
 
     this.consumerService.on("connected", () => {
-      console.log("Output monitor consumer connected");
+      console.log("🔗 Output monitor consumer connected");
       this.emit("monitor-connected");
     });
 
     this.consumerService.on("error", (error) => {
-      console.error("Output monitor error:", error);
+      console.error("❌ Output monitor error:", error);
       this.emit("monitor-error", error);
     });
   }
@@ -61,6 +61,7 @@ export class KafkaOutputMonitor extends EventEmitter {
       // Extract org-usr-node from topic name
       const topicParts = messageData.topic.split("-");
       if (topicParts.length < 4 || !messageData.topic.endsWith("-topic")) {
+        console.log(`⚠️  Received message from non-flow topic: ${messageData.topic}`);
         return; // Not a flow topic
       }
 
@@ -91,13 +92,8 @@ export class KafkaOutputMonitor extends EventEmitter {
       this.emit(`output:${orgUsrNode}`, flowOutput);
       this.emit(`topic-output:${messageData.topic}`, flowOutput);
 
-      console.log(`📥 Flow output from ${orgUsrNode}:`, {
-        topic: messageData.topic,
-        timestamp: flowOutput.timestamp,
-        dataSize: JSON.stringify(flowOutput.data).length,
-      });
     } catch (error) {
-      console.error("Error handling flow output:", error);
+      console.error("❌ Error handling flow output:", error);
       this.emit("parse-error", { error, messageData });
     }
   }
@@ -145,6 +141,11 @@ export class KafkaOutputMonitor extends EventEmitter {
         } else {
           console.log("   Looking for topics ending with: -topic");
         }
+        
+        // Still set up the consumer service for when topics are created
+        console.log("🔄 Setting up consumer for future topics...");
+        this.isMonitoring = true;
+        this.emit("monitoring-started", { topics: [] });
         return;
       }
 
@@ -177,7 +178,7 @@ export class KafkaOutputMonitor extends EventEmitter {
       console.log("🛑 Output monitoring stopped");
       this.emit("monitoring-stopped");
     } catch (error) {
-      console.error("Error stopping monitoring:", error);
+      console.error("❌ Error stopping monitoring:", error);
       throw error;
     }
   }

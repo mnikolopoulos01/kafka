@@ -1,113 +1,74 @@
 import { KafkaOutputMonitor } from "../services/KafkaOutputMonitor.js";
-import { createKafkaConfig } from "../config/kafkaConfig.js";
+import { defaultKafkaConfig } from "../config/kafkaConfig.js";
 
 async function monitorFlowOutputs() {
-  console.log("🚀 Starting Flow Output Monitor Example");
-
-  // Create configuration
-  const config = createKafkaConfig(
-    ["192.168.100.164:9092"], // Update with your Kafka brokers
-    "flow-output-monitor",
-    "flow-output-monitor-group"
-  );
-
-  // Create monitor
-  const monitor = new KafkaOutputMonitor(config, 500); // Keep last 500 outputs
-
-  // Set up event listeners
-  monitor.on("flow-output", (output) => {
-    console.log(`\n📨 New flow output from ${output.orgUsrNode}:`);
-    console.log(`   Topic: ${output.topic}`);
-    console.log(`   Time: ${output.timestamp}`);
-    console.log(`   Data:`, JSON.stringify(output.data, null, 2));
-  });
-
-  monitor.on("monitoring-started", ({ topics }) => {
-    console.log(`\n✅ Monitoring started for ${topics.length} topics`);
-    console.log("Topics:", topics);
-  });
-
-  monitor.on("monitor-error", (error) => {
-    console.error("\n❌ Monitor error:", error);
-  });
-
-  // Example: Monitor specific org-usr-node
-  monitor.on("output:myorg-myuser-mynode", (output) => {
-    console.log(`\n🎯 Specific output from myorg-myuser-mynode:`, output.data);
-  });
+  const monitor = new KafkaOutputMonitor(defaultKafkaConfig, 1000);
 
   try {
-    // Start monitoring all flow topics
-    console.log("\n🔍 Starting to monitor all flow topics...");
+    console.log("🚀 Starting dedicated flow output monitor...");
+
+    // Set up event listeners
+    monitor.on("flow-output", (output) => {
+      console.log(`\n📥 NEW FLOW OUTPUT`);
+      console.log(`   From: ${output.orgUsrNode}`);
+      console.log(`   Topic: ${output.topic}`);
+      console.log(`   Time: ${output.timestamp}`);
+      console.log(`   Key: ${output.messageKey || 'none'}`);
+      console.log(`   Data:`, JSON.stringify(output.data, null, 2));
+      console.log(`   Partition: ${output.partition}, Offset: ${output.offset}`);
+    });
+
+    monitor.on("monitoring-started", ({ topics }) => {
+      console.log(`✅ Monitoring started for ${topics.length} topics:`, topics);
+      if (topics.length === 0) {
+        console.log("💡 No flow topics found. Create topics ending with '-topic' to see outputs.");
+      }
+    });
+
+    monitor.on("monitor-connected", () => {
+      console.log("🔗 Monitor consumer connected");
+    });
+
+    monitor.on("monitoring-error", (error) => {
+      console.error("❌ Monitoring error:", error);
+    });
+
+    // Start monitoring
     await monitor.startMonitoring();
 
-    // Show status every 30 seconds
-    const statusInterval = setInterval(() => {
+    // Show periodic status
+    setInterval(() => {
       const status = monitor.getMonitoringStatus();
       const stats = monitor.getTopicStatistics();
-
-      console.log("\n📊 Monitoring Status:");
-      console.log(`   Active: ${status.isMonitoring}`);
+      
+      console.log(`\n📊 MONITOR STATUS:`);
       console.log(`   Total outputs received: ${status.totalOutputs}`);
-      console.log(`   Topics monitored: ${status.topicCount}`);
-
+      console.log(`   Active topics: ${status.topicCount}`);
+      
       if (stats.length > 0) {
-        console.log("\n📈 Topic Statistics:");
-        stats.forEach((stat) => {
-          console.log(`   ${stat.topic}: ${stat.messageCount} messages`);
-          if (stat.lastMessageTime) {
-            console.log(`     Last message: ${stat.lastMessageTime}`);
-          }
+        console.log(`   Topic statistics:`);
+        stats.forEach(stat => {
+          console.log(`     ${stat.topic}: ${stat.messageCount} messages`);
         });
       }
-    }, 30000);
+    }, 60000); // Every minute
 
-    // Example: Get latest outputs every minute
-    const outputInterval = setInterval(() => {
-      const latest = monitor.getLatestOutputs(5);
-      if (latest.length > 0) {
-        console.log("\n🕐 Latest 5 outputs:");
-        latest.forEach((output, index) => {
-          console.log(
-            `   ${index + 1}. ${output.orgUsrNode} at ${output.timestamp}`
-          );
-        });
-      }
-    }, 60000);
+    console.log("\n🎯 Monitor is running!");
+    console.log("💡 Send messages to topics ending with '-topic' to see outputs here.");
+    console.log("🛑 Press Ctrl+C to stop");
 
     // Graceful shutdown
     process.on("SIGINT", async () => {
       console.log("\n🛑 Shutting down monitor...");
-      clearInterval(statusInterval);
-      clearInterval(outputInterval);
-
-      // Show final statistics
-      const finalStats = monitor.getTopicStatistics();
-      const allOutputs = monitor.getAllOutputs();
-
-      console.log("\n📋 Final Statistics:");
-      console.log(`   Total outputs processed: ${allOutputs.length}`);
-      finalStats.forEach((stat) => {
-        console.log(`   ${stat.topic}: ${stat.messageCount} messages`);
-      });
-
       await monitor.disconnect();
-      console.log("👋 Monitor shutdown complete");
+      console.log("👋 Monitor stopped");
       process.exit(0);
     });
 
-    console.log("\n🎯 Monitor is running. Press Ctrl+C to stop.");
-    console.log("💡 Upload files and run NiFi flows to see outputs here!");
   } catch (error) {
-    console.error("❌ Failed to start monitoring:", error);
-    await monitor.disconnect();
+    console.error("❌ Error starting monitor:", error);
     process.exit(1);
   }
 }
 
-// Run if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  monitorFlowOutputs();
-}
-
-export { monitorFlowOutputs };
+monitorFlowOutputs();
